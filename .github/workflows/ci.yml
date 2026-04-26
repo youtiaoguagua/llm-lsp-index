@@ -46,7 +46,7 @@ jobs:
       run: cargo test --verbose
 
     - name: Check formatting
-      run: cargo fmt -- --check
+      run: cargo +stable fmt -- --check
 
     - name: Run clippy
       run: cargo clippy -- -D warnings
