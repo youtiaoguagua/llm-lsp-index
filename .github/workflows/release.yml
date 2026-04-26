@@ -33,8 +33,16 @@ jobs:
             binary: lsp-index
 
     runs-on: ${{ matrix.os }}
+    outputs:
+      version: ${{ steps.vars.outputs.version }}
     steps:
     - uses: actions/checkout@v4
+
+    - name: Set version
+      id: vars
+      run: |
+        VERSION=${GITHUB_REF_NAME:-${{ inputs.version }}}
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
 
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
@@ -54,7 +62,7 @@ jobs:
     - name: Package
       shell: bash
       run: |
-        VERSION=${GITHUB_REF_NAME:-${{ inputs.version }}}
+        VERSION=${{ steps.vars.outputs.version }}
         mkdir -p dist
         if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
           cp target/${{ matrix.target }}/release/lsp-index.exe dist/
@@ -90,6 +98,7 @@ jobs:
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
+        tag_name: ${{ needs.build.outputs.version }}
         files: artifacts/**/*
         draft: false
         prerelease: false
