@@ -134,40 +134,52 @@ For MCP clients that support HTTP transport:
 
 Endpoint: `POST http://127.0.0.1:3000/mcp` - MCP protocol over HTTP
 
-#### Test with manual MCP request
-
-```bash
-echo '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"lsp_workspace_symbols","arguments":{"query":"MyStruct"}}}' | ./target/release/lsp-index
-```
-
-#### GUI Mode
-
-```bash
-./src-tauri/target/release/lsp-index-gui.exe
-```
-
 ## MCP Tools
 
 ### lsp_hybrid_search
 
 Search for symbols and text matches across the workspace. Combines LSP symbol search with ripgrep-like text search to find TODOs, comments, strings, and code symbols.
 
+Supports **regex patterns** for flexible searching.
+
 **Parameters:**
-- `query` (required): Search pattern (symbol name or text)
+- `query` (required): Search pattern (symbol name or regex, e.g., `TODO|FIXME`, `fn \w+`, `^pub struct`)
 - `include_symbols`: Include LSP symbol results (default: `true`)
 - `include_text`: Include text search results (default: `true`)
 - `file_types`: Filter by file extensions, e.g., `["rs", "toml"]` (optional)
 - `max_results`: Maximum total results (default: `10`)
 
-**Example:**
+**Examples:**
+
 ```json
+// Search for TODO/FIXME comments
 {
   "name": "lsp_hybrid_search",
   "arguments": {
-    "query": "TODO",
+    "query": "TODO|FIXME",
     "include_symbols": false,
     "include_text": true,
     "file_types": ["rs"]
+  }
+}
+
+// Search for public structs
+{
+  "name": "lsp_hybrid_search",
+  "arguments": {
+    "query": "^pub struct",
+    "include_symbols": true,
+    "include_text": true
+  }
+}
+
+// Search function definitions with regex
+{
+  "name": "lsp_hybrid_search",
+  "arguments": {
+    "query": "fn \w+\s*\(",
+    "file_types": ["rs"],
+    "max_results": 20
   }
 }
 ```
@@ -180,7 +192,7 @@ hybrid_search (Function) @ src/search/hybrid.rs:66
 
 === Text Matches (3 found) ===
 src/main.rs:15 | // TODO: Add better error handling
-src/lib.rs:42 | // TODO: Support more languages
+src/lib.rs:42 | // FIXME: Handle edge case
 ```
 
 ### lsp_goto_definition
