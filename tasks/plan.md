@@ -6,10 +6,10 @@ Add ripgrep-based text search capability and create a hybrid search tool that co
 
 ## Architecture Decisions
 
-1. **Use `grep` crate for Rust-native search** - Pure Rust implementation, no external binary dependency
+1. **Use `ignore` + `grep` crates** - `ignore` provides parallel directory traversal with .gitignore support (same library ripgrep uses). `grep` provides the regex search engine. Together they provide ripgrep-equivalent functionality with zero external dependencies.
 2. **Hybrid search returns unified results** - Combines symbol results (with type info) + text matches (with context)
-3. **Respect .gitignore** - Skip files that would be ignored by git
-4. **Parallel execution** - Run LSP and ripgrep searches concurrently for performance
+3. **Respect .gitignore automatically** - `ignore::Walk` handles this by default
+4. **Parallel execution** - Run LSP and text searches concurrently for performance
 
 ## Dependency Graph
 
