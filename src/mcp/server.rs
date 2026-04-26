@@ -3,9 +3,9 @@
 use std::io::{self, BufRead, Write};
 use std::path::PathBuf;
 use crate::lsp::watcher::{FileWatcher, FileChangeEvent};
+use crate::lsp::java_virtual_uri::JavaVirtualUriHandler;
 use crate::mcp::protocol::{McpRequest, McpResponse, McpError};
 use crate::mcp::tools::McpTool;
-use crate::bridge::handlers::handle_tool_call;
 use crate::lsp::{LspClient, LspRegistry};
 use tokio::sync::mpsc;
 
@@ -244,7 +244,7 @@ impl McpServer {
                 ).await?;
 
                 // Parse result and extract code snippet
-                self.parse_definition_result(result, arguments["all_implementations"].as_bool().unwrap_or(false))
+                self.parse_definition_result(result, arguments["all_implementations"].as_bool().unwrap_or(false)).await
             }
             "lsp_find_references" => {
                 let file_path = arguments["file_path"].as_str().unwrap_or("");
@@ -356,13 +356,15 @@ impl McpServer {
         }
     }
 
+
     /// Parse definition result and extract snippets
-    fn parse_definition_result(
-        &self,
+    async fn parse_definition_result(
+        &mut self,
         result: serde_json::Value,
         all_implementations: bool,
     ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
-        use crate::bridge::snippet::extract_snippet;
+        use crate::bridge::snippet::{extract_snippet, extract_snippet_virtual};
+        use crate::lsp::java_virtual_uri::JavaVirtualUriHandler;
 
         tracing::debug!("Parsing definition result: {:?}", result);
 
@@ -433,8 +435,33 @@ impl McpServer {
 
         let mut snippets = Vec::new();
         for (path, line) in locations {
-            let snippet = extract_snippet(&path, line, 20)?;
-            snippets.push(format!("File: {}:{}\n{}", path, line + 1, snippet));
+            // Check if this is a Java virtual URI
+            if JavaVirtualUriHandler::is_virtual_uri(&path) {
+                // For virtual URIs, fetch source from JDT LS
+                if let Some(client) = self.lsp_client.as_mut() {
+                    match JavaVirtualUriHandler::fetch_source(client, &path).await {
+                        Ok(source) => {
+                            match extract_snippet_virtual(&source, &path, line, 20) {
+                                Ok(snippet) => snippets.push(snippet),
+                                Err(e) => {
+                                    tracing::warn!("Failed to extract snippet from virtual URI: {}", e);
+                                    snippets.push(format!("Virtual: {}:{}\n(error extracting snippet)", path, line + 1));
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            tracing::warn!("Failed to fetch source for virtual URI {}: {}", path, e);
+                            snippets.push(format!("Virtual: {}:{}\n(error fetching source: {})", path, line + 1, e));
+                        }
+                    }
+                } else {
+                    snippets.push(format!("Virtual: {}:{}\n(LSP client not available)", path, line + 1));
+                }
+            } else {
+                // Regular file path
+                let snippet = extract_snippet(&path, line, 20)?;
+                snippets.push(format!("File: {}:{}\n{}", path, line + 1, snippet));
+            }
         }
 
         Ok(serde_json::json!({

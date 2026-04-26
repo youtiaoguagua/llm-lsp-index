@@ -317,6 +317,22 @@ impl LspClient {
         });
     }
 
+    /// Send a custom LSP request (for language-specific extensions like JDT LS)
+    pub async fn send_custom_request(
+        &mut self,
+        method: &str,
+        params: serde_json::Value,
+    ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+        self.process.send_request(method, params).await?;
+        let response = self.process.read_response().await?;
+
+        if let Some(error) = response.get("error") {
+            return Err(format!("LSP {} error: {:?}", method, error).into());
+        }
+
+        Ok(response.get("result").cloned().unwrap_or(serde_json::Value::Null))
+    }
+
     /// Shutdown the LSP client
     pub async fn shutdown(&mut self) {
         self.process.kill().await;
