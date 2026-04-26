@@ -14,7 +14,10 @@
       "Bash(gopls version *)",
       "Bash(cargo tauri *)",
       "Bash(git init *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git filter-branch -f --env-filter ' *)",
+      "Bash(cargo test *)"
     ]
   }
 }
