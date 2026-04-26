@@ -319,6 +319,37 @@ impl McpServer {
                     }))
                 }
             }
+            "lsp_hybrid_search" => {
+                let query = arguments["query"].as_str().unwrap_or("");
+                let include_symbols = arguments["include_symbols"].as_bool().unwrap_or(true);
+                let include_text = arguments["include_text"].as_bool().unwrap_or(true);
+                let max_results = arguments["max_results"].as_u64().unwrap_or(10) as usize;
+
+                // Parse file_types if provided
+                let file_types = arguments["file_types"].as_array()
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                            .collect::<Vec<String>>()
+                    });
+
+                let options = crate::search::HybridSearchOptions {
+                    query: query.to_string(),
+                    include_symbols,
+                    include_text,
+                    file_types,
+                    max_results,
+                };
+
+                let workspace_root = self.workspace_root.to_string_lossy().to_string();
+                let result = crate::search::hybrid_search(
+                    self.lsp_client.as_mut(),
+                    &workspace_root,
+                    &options
+                ).await?;
+
+                self.parse_hybrid_result(result)
+            }
             _ => {
                 Err(format!("Unknown tool: {}", tool_name).into())
             }
@@ -499,13 +530,18 @@ impl McpServer {
                 let kind = sym.get("kind").and_then(|k| k.as_u64()).unwrap_or(0);
                 let kind_name = match kind {
                     5 => "Class",
-                    9 => "Function",
-                    12 => "Variable",
-                    13 => "Constant",
-                    22 => "Struct",
-                    23 => "Enum",
-                    24 => "Interface",
-                    25 => "Method",
+                    6 => "Method",
+                    9 => "Constructor",
+                    10 => "Enum",
+                    11 => "Interface",
+                    12 => "Function",
+                    13 => "Variable",
+                    14 => "Constant",
+                    22 => "EnumMember",
+                    23 => "Struct",
+                    24 => "Event",
+                    25 => "Operator",
+                    26 => "TypeParameter",
                     _ => "Symbol"
                 };
 
@@ -544,8 +580,53 @@ impl McpServer {
         }))
     }
 
+    /// Parse hybrid search result
+    fn parse_hybrid_result(&self, result: crate::search::HybridResult) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+        let mut lines: Vec<String> = Vec::new();
+
+        // Add symbol results first
+        if !result.symbol_results.is_empty() {
+            lines.push(format!("=== Symbols ({} found) ===", result.symbol_results.len()));
+            for sym in &result.symbol_results {
+                let desc = sym.description.as_deref().unwrap_or("");
+                if desc.is_empty() {
+                    lines.push(format!("{} ({}) @ {}:{}", sym.name, sym.kind, sym.file, sym.line));
+                } else {
+                    lines.push(format!("{} ({}) @ {}:{} - {}", sym.name, sym.kind, sym.file, sym.line, desc));
+                }
+            }
+        }
+
+        // Add text results
+        if !result.text_results.is_empty() {
+            if !lines.is_empty() {
+                lines.push("".to_string());
+            }
+            lines.push(format!("=== Text Matches ({} found) ===", result.text_results.len()));
+            for txt in &result.text_results {
+                lines.push(format!("{}:{} | {}", txt.file, txt.line, txt.content.trim()));
+            }
+        }
+
+        if lines.is_empty() {
+            return Ok(serde_json::json!({
+                "content": [{
+                    "type": "text",
+                    "text": "No results found"
+                }]
+            }));
+        }
+
+        Ok(serde_json::json!({
+            "content": [{
+                "type": "text",
+                "text": lines.join("\n")
+            }]
+        }))
+    }
+
     /// Convert file URI to path, handling Windows file:///d: format
-    fn uri_to_path(uri: &str) -> Option<String> {
+    pub fn uri_to_path(uri: &str) -> Option<String> {
         let without_prefix = uri.strip_prefix("file://")?;
 
         // Handle Windows paths like /d:/path or /D:/path
@@ -563,6 +644,7 @@ impl McpServer {
     /// Handle MCP initialize request
     pub fn handle_initialize(&self) -> serde_json::Value {
         serde_json::json!({
+            "protocolVersion": "2024-11-05",
             "capabilities": {
                 "tools": {}
             },

@@ -126,6 +126,21 @@ impl McpTool {
                     "required": ["file_path"]
                 }
             }),
+            serde_json::json!({
+                "name": "lsp_hybrid_search",
+                "description": "Search for symbols and text matches across the workspace. Combines LSP symbol search with ripgrep-like text search to find TODOs, comments, strings, and symbols.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string", "description": "Search query (symbol name or text pattern)"},
+                        "include_symbols": {"type": "boolean", "description": "Include LSP symbol results (default: true)", "default": true},
+                        "include_text": {"type": "boolean", "description": "Include text search results (default: true)", "default": true},
+                        "file_types": {"type": "array", "description": "Filter by file extensions (e.g., [\"rs\", \"toml\"])", "items": {"type": "string"}},
+                        "max_results": {"type": "integer", "description": "Maximum total results (default: 10)", "default": 10}
+                    },
+                    "required": ["query"]
+                }
+            }),
         ]
     }
 }

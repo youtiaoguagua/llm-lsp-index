@@ -15,9 +15,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     tracing::info!("LSP-to-MCP Bridge starting...");
 
-    // Parse workspace from args or use current directory
+    // Parse workspace from args or env var or use current directory
+    // Priority: 1. Command line arg, 2. LSP_INDEX_WORKSPACE env var, 3. Current directory
     let workspace_root = std::env::args()
         .nth(1)
+        .or_else(|| std::env::var("LSP_INDEX_WORKSPACE").ok())
         .unwrap_or_else(|| ".".to_string());
 
     let config = Config::new(std::path::PathBuf::from(&workspace_root));

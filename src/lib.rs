@@ -8,7 +8,9 @@ pub mod lsp;
 pub mod mcp;
 pub mod bridge;
 pub mod utils;
+pub mod search;
 
 pub use config::Config;
 pub use lsp::{LspClient, LspRegistry};
 pub use mcp::McpServer;
+pub use search::{search_text, TextMatch, SearchOptions};
