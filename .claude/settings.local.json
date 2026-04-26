@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git config *)",
+      "Bash(cargo check *)",
+      "Bash(cargo build *)",
+      "Bash(./target/release/lsp-index.exe)",
+      "Bash(set RUST_LOG=debug)",
+      "Bash(findstr /i \"hover\")",
+      "Bash(findstr \"Hover raw\")",
+      "Bash(../../../target/release/lsp-index.exe)",
+      "Bash(../../../../target/release/lsp-index.exe)",
+      "Bash(/d/project/vscode/lsp-index/target/release/lsp-index.exe)",
+      "Bash(gopls version *)",
+      "Bash(cargo tauri *)",
+      "Bash(git init *)",
+      "Bash(git add *)"
+    ]
+  }
+}
