@@ -9,28 +9,32 @@ This project bridges the gap between traditional IDE features (go-to-definition,
 ## Features
 
 - **Multi-Language Support**: Rust (rust-analyzer), Go (gopls), TypeScript (typescript-language-server)
+- **Hybrid Search**: Combines LSP symbol search with ripgrep-like text search to find TODOs, comments, and code
 - **LSP Tools Exposed via MCP**:
+  - `lsp_hybrid_search` - Search symbols and text (TODOs, comments) across workspace
   - `lsp_goto_definition` - Jump to symbol definitions with code snippets
   - `lsp_find_references` - Find all references to a symbol
   - `lsp_hover` - Get type information and documentation
   - `lsp_workspace_symbols` - Search symbols across the entire workspace
-  - `lsp_get_diagnostics` - Get lint/type errors (framework ready)
+  - `lsp_get_diagnostics` - Get lint/type errors
 - **File Watching**: Automatic synchronization of file changes to LSP
 - **Desktop GUI**: Tauri-based management interface
+- **Dual Transport**: stdio (MCP standard) and HTTP (StreamableHTTP)
 
 ## Architecture
 
 ```
 ┌─────────────┐     MCP Protocol      ┌─────────────────┐     LSP Protocol     ┌─────────────┐
 │   Claude    │ ←───────────────────→ │   MCP Server    │ ←──────────────────→ │  LSP Server │
-│   (AI)      │   (stdio/jsonrpc)     │  (lsp-index)    │   (stdio/jsonrpc)  │(rust-analyzer|
-└─────────────┘                       └─────────────────┘                      │  gopls, etc)│
-                                               │                               └─────────────┘
-                                               ↓
+│   (AI)      │   (stdio/jsonrpc)     │  (lsp-index)    │   (stdio/jsonrpc)  │(rust-analyzer│
+└─────────────┘        or             └─────────────────┘                      │  gopls, etc)│
+                       HTTP                    │                                 └─────────────┘
+                       (3000)                 ↓
                                         ┌──────────────┐
-                                        │ File Watcher │
-                                        │  (notify)    │
-                                        └──────────────┘
+                                        │ File Watcher │     ┌──────────────┐
+                                        │  (notify)    │     │ Text Search  │
+                                        └──────────────┘     │ (ignore+grep)│
+                                                             └──────────────┘
 ```
 
 ## Quick Start
@@ -49,11 +53,55 @@ This project bridges the gap between traditional IDE features (go-to-definition,
 # Build CLI
 cargo build --release
 
+# Build HTTP server (optional)
+cargo build --release --bin lsp-index-http
+
 # Build GUI (optional)
 cargo tauri build
 ```
 
 ### Usage
+
+#### MCP Configuration
+
+Configure your MCP client (Claude Desktop, Claude Code, etc.) to use lsp-index:
+
+**Claude Desktop (`claude_desktop_config.json`):**
+
+```json
+{
+  "mcpServers": {
+    "lsp-index": {
+      "command": "/path/to/lsp-index",
+      "args": ["/path/to/your/project"],
+      "env": {
+        "RUST_LOG": "info"
+      }
+    }
+  }
+}
+```
+
+**Claude Code (`.mcp.json` in project root):**
+
+```json
+{
+  "servers": [
+    {
+      "name": "lsp-index",
+      "command": ["/path/to/lsp-index", "."],
+      "transport": "stdio"
+    }
+  ]
+}
+```
+
+**Environment Variables:**
+
+| Variable | Description |
+|----------|-------------|
+| `LSP_INDEX_WORKSPACE` | Project directory path (alternative to CLI arg) |
+| `RUST_LOG` | Log level: `error`, `warn`, `info`, `debug`, `trace` |
 
 #### CLI Mode (stdio MCP Server)
 
@@ -62,11 +110,29 @@ cargo tauri build
 cd my-rust-project
 ./target/release/lsp-index
 
-# Or specify workspace
-./target/release/lsp-index --workspace /path/to/project
+# Or specify workspace via argument
+./target/release/lsp-index /path/to/project
+
+# Or use environment variable
+export LSP_INDEX_WORKSPACE=/path/to/project
+./target/release/lsp-index
 ```
 
 The server reads MCP requests from stdin and writes responses to stdout.
+
+#### HTTP Mode (StreamableHTTP MCP Server)
+
+For MCP clients that support HTTP transport:
+
+```bash
+# Start HTTP server
+./target/release/lsp-index-http
+
+# Or with custom host/port
+./target/release/lsp-index-http --host 127.0.0.1 --port 3000
+```
+
+Endpoint: `POST http://127.0.0.1:3000/mcp` - MCP protocol over HTTP
 
 #### Test with manual MCP request
 
@@ -81,6 +147,41 @@ echo '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"lsp_worksp
 ```
 
 ## MCP Tools
+
+### lsp_hybrid_search
+
+Search for symbols and text matches across the workspace. Combines LSP symbol search with ripgrep-like text search to find TODOs, comments, strings, and code symbols.
+
+**Parameters:**
+- `query` (required): Search pattern (symbol name or text)
+- `include_symbols`: Include LSP symbol results (default: `true`)
+- `include_text`: Include text search results (default: `true`)
+- `file_types`: Filter by file extensions, e.g., `["rs", "toml"]` (optional)
+- `max_results`: Maximum total results (default: `10`)
+
+**Example:**
+```json
+{
+  "name": "lsp_hybrid_search",
+  "arguments": {
+    "query": "TODO",
+    "include_symbols": false,
+    "include_text": true,
+    "file_types": ["rs"]
+  }
+}
+```
+
+**Output:**
+```
+=== Symbols (2 found) ===
+parse_definition_result (Function) @ src/mcp/server.rs:360
+hybrid_search (Function) @ src/search/hybrid.rs:66
+
+=== Text Matches (3 found) ===
+src/main.rs:15 | // TODO: Add better error handling
+src/lib.rs:42 | // TODO: Support more languages
+```
 
 ### lsp_goto_definition
 
@@ -136,57 +237,7 @@ Get diagnostics (errors, warnings) for a file.
 **Parameters:**
 - `file_path`: Absolute path to the source file
 
-## Project Structure
-
-```
-.
-├── Cargo.toml              # Main crate configuration
-├── src/
-│   ├── main.rs            # CLI entry point
-│   ├── lib.rs             # Library exports
-│   ├── config.rs          # Configuration management
-│   ├── lsp/               # LSP client implementation
-│   │   ├── client.rs      # LSP client (handshake, requests)
-│   │   ├── process.rs     # LSP process management
-│   │   ├── registry.rs    # Language detection & LSP config
-│   │   ├── watcher.rs     # File system watcher
-│   │   └── types.rs       # LSP types
-│   ├── mcp/               # MCP server implementation
-│   │   ├── server.rs      # MCP protocol handler
-│   │   ├── protocol.rs    # MCP types
-│   │   └── tools.rs       # Tool definitions
-│   ├── bridge/            # LSP-to-MCP mapping
-│   │   ├── handlers.rs    # Tool call handlers
-│   │   └── snippet.rs     # Code snippet extraction
-│   └── utils/             # Utilities
-│       ├── file.rs
-│       └── uri.rs
-├── src-tauri/             # Tauri GUI
-│   ├── src/
-│   │   ├── main.rs
-│   │   └── lib.rs         # Tauri commands
-│   ├── static/
-│   │   └── index.html     # Frontend
-│   └── tauri.conf.json    # Tauri configuration
-├── tests/
-│   └── fixtures/          # Test projects
-│       ├── rust-sample/
-│       └── go-sample/
-├── PLAN.md                # Implementation plan
-└── SPEC.md                # Architecture specification
-```
-
 ## Development
-
-### Running Tests
-
-```bash
-# Build and test
-cargo test
-
-# Run with logging
-RUST_LOG=debug cargo run
-```
 
 ### Test Fixtures
 
