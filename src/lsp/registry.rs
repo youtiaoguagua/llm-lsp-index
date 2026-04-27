@@ -19,7 +19,8 @@ pub struct LspConfig {
     pub language: String,
     pub binary_name: String,
     pub binary_path: Option<String>,
-    pub root_file: String,
+    /// Root files that identify this project type (checked in order)
+    pub root_files: Vec<String>,
     /// Whether this LSP uses virtual URIs (e.g., jdt:// for Java)
     pub supports_virtual_uris: bool,
 }
@@ -31,7 +32,7 @@ impl LspConfig {
             language: "rust".to_string(),
             binary_name: "rustup".to_string(),
             binary_path: None,
-            root_file: "Cargo.toml".to_string(),
+            root_files: vec!["Cargo.toml".to_string()],
             supports_virtual_uris: false,
         }
     }
@@ -83,7 +84,7 @@ impl LspConfig {
             language: "go".to_string(),
             binary_name: "gopls".to_string(),
             binary_path: None,
-            root_file: "go.mod".to_string(),
+            root_files: vec!["go.mod".to_string()],
             supports_virtual_uris: false,
         }
     }
@@ -94,31 +95,24 @@ impl LspConfig {
             language: "typescript".to_string(),
             binary_name: "typescript-language-server".to_string(),
             binary_path: None,
-            root_file: "package.json".to_string(),
+            root_files: vec!["package.json".to_string()],
             supports_virtual_uris: false,
         }
     }
 
-    /// Java language configuration
+    /// Java language configuration (Maven and Gradle)
     pub fn java() -> Self {
         Self {
             language: "java".to_string(),
             // JDT LS is typically run via java -jar
             binary_name: "java".to_string(),
             binary_path: None,
-            // Java projects can be identified by pom.xml (Maven) or build.gradle (Gradle)
-            root_file: "pom.xml".to_string(),
-            supports_virtual_uris: true,
-        }
-    }
-
-    /// Java Gradle configuration (alternative root file)
-    pub fn java_gradle() -> Self {
-        Self {
-            language: "java".to_string(),
-            binary_name: "java".to_string(),
-            binary_path: None,
-            root_file: "build.gradle".to_string(),
+            // Java projects can be identified by pom.xml (Maven) or build.gradle/build.gradle.kts (Gradle)
+            root_files: vec![
+                "pom.xml".to_string(),
+                "build.gradle".to_string(),
+                "build.gradle.kts".to_string(),
+            ],
             supports_virtual_uris: true,
         }
     }
@@ -143,7 +137,6 @@ impl LspRegistry {
                 LspConfig::go(),
                 LspConfig::typescript(),
                 LspConfig::java(),
-                LspConfig::java_gradle(),
             ],
         }
     }
@@ -151,11 +144,13 @@ impl LspRegistry {
     /// Detect language from project root directory
     pub fn detect_language(&self, root_path: &Path) -> Option<&LspConfig> {
         for config in &self.configs {
-            let root_file = root_path.join(&config.root_file);
-            tracing::debug!("Checking for root file: {:?}", root_file);
-            if root_file.exists() {
-                tracing::info!("Found language config: {} at {:?}", config.language, root_file);
-                return Some(config);
+            for root_file in &config.root_files {
+                let root_file_path = root_path.join(root_file);
+                tracing::debug!("Checking for root file: {:?}", root_file_path);
+                if root_file_path.exists() {
+                    tracing::info!("Found language config: {} at {:?}", config.language, root_file_path);
+                    return Some(config);
+                }
             }
         }
         tracing::warn!("No language detected in {:?}", root_path);
