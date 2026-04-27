@@ -140,4 +140,4 @@ jobs:
         package: ./npm-package
         access: public
       env:
-        NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
