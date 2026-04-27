@@ -161,11 +161,38 @@ impl McpServer {
                 }
             }
             "tools/list" => {
+                // Return different tools based on LSP availability
+                let tools = if self.lsp_client.is_some() {
+                    // Full functionality - LSP available
+                    tracing::info!("Returning full tool set (LSP available)");
+                    McpTool::definitions()
+                } else {
+                    // Limited functionality - only standalone tools
+                    tracing::info!("Returning standalone tools (LSP not available)");
+                    let mut tools = McpTool::standalone_definitions();
+                    // Also include hybrid search which works partially without LSP
+                    tools.push(serde_json::json!({
+                        "name": "lsp_hybrid_search",
+                        "description": "Search for text matches across the workspace (LSP symbol search unavailable without language server).",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "query": {"type": "string", "description": "Search query (text pattern)"},
+                                "include_text": {"type": "boolean", "description": "Include text search results (default: true)", "default": true},
+                                "file_types": {"type": "array", "description": "Filter by file extensions", "items": {"type": "string"}},
+                                "max_results": {"type": "integer", "description": "Maximum total results (default: 10)", "default": 10}
+                            },
+                            "required": ["query"]
+                        }
+                    }));
+                    tools
+                };
+
                 McpResponse {
                     jsonrpc: "2.0",
                     id: request.id.unwrap_or(0),
                     result: Some(serde_json::json!({
-                        "tools": McpTool::definitions()
+                        "tools": tools
                     })),
                     error: None,
                 }
@@ -225,7 +252,7 @@ impl McpServer {
         arguments: &serde_json::Value,
     ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
         let client = self.lsp_client.as_mut()
-            .ok_or("LSP client not initialized")?;
+            .ok_or("LSP client not initialized. This workspace has no supported language detected. Expected one of: Cargo.toml (Rust), go.mod (Go), package.json (TypeScript), pom.xml/build.gradle/build.gradle.kts (Java). Install the appropriate language server or ensure project files are present.")?;
 
         match tool_name {
             "lsp_goto_definition" => {
