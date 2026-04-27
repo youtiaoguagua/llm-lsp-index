@@ -13,6 +13,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   build:
@@ -90,7 +91,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: lsp-index-${{ matrix.target }}
-        path: dist/lsp-index-*.{tar.gz,zip}
+        path: dist/
 
   release:
     needs: build
