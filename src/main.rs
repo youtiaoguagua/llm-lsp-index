@@ -22,6 +22,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .or_else(|| std::env::var("LSP_INDEX_WORKSPACE").ok())
         .unwrap_or_else(|| ".".to_string());
 
+    tracing::info!("Workspace root: {}", workspace_root);
+    tracing::info!("LSP_INDEX_WORKSPACE env: {:?}", std::env::var("LSP_INDEX_WORKSPACE"));
+
     let config = Config::new(std::path::PathBuf::from(&workspace_root));
 
     // Detect language
