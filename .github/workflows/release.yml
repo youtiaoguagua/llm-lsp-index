@@ -40,6 +40,7 @@ jobs:
 
     - name: Set version
       id: vars
+      shell: bash
       run: |
         VERSION=${GITHUB_REF_NAME:-${{ inputs.version }}}
         echo "version=$VERSION" >> $GITHUB_OUTPUT
@@ -123,6 +124,7 @@ jobs:
 
     - name: Extract version from tag
       id: get_version
+      shell: bash
       run: |
         VERSION=${GITHUB_REF_NAME:-${{ inputs.version }}}
         # Remove 'v' prefix if present
