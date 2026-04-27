@@ -142,8 +142,11 @@ jobs:
       working-directory: ./npm-package
       run: npm version ${{ steps.get_version.outputs.VERSION }} --no-git-tag-version
 
+    - name: Setup npm auth
+      run: npm config set //registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}
+
     - name: Publish to npm
       working-directory: ./npm-package
       run: npm publish --access public
       env:
-        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
