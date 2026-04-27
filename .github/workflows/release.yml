@@ -134,7 +134,17 @@ jobs:
       shell: bash
       run: |
         VERSION=${GITHUB_REF_NAME:-${{ inputs.version }}}
+        # Ensure we only process tag refs
+        if [[ "$VERSION" == refs/tags/* ]]; then
+          VERSION=${VERSION#refs/tags/}
+        fi
+        # Remove 'v' prefix if present
         VERSION=${VERSION#v}
+        # Validate version is not empty or branch name
+        if [[ -z "$VERSION" ]] || [[ "$VERSION" =~ ^(master|main|HEAD)$ ]]; then
+          echo "Error: Invalid version '$VERSION'"
+          exit 1
+        fi
         echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
         echo "Publishing version: $VERSION"
 
