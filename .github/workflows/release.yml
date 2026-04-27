@@ -138,5 +138,6 @@ jobs:
       uses: JS-DevTools/npm-publish@v3
       with:
         package: ./npm-package
-        token: ${{ secrets.NPM_TOKEN }}
         access: public
+      env:
+        NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
