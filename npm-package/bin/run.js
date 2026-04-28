@@ -48,7 +48,7 @@ function getArchiveName() {
 
 function downloadFile(url, dest) {
   return new Promise((resolve, reject) => {
-    const file = fs.createWriteStream(dest);
+    const chunks = [];
     https.get(url, (response) => {
       if (response.statusCode === 302 || response.statusCode === 301) {
         downloadFile(response.headers.location, dest).then(resolve).catch(reject);
@@ -58,8 +58,12 @@ function downloadFile(url, dest) {
         reject(new Error(`HTTP ${response.statusCode}`));
         return;
       }
-      response.pipe(file);
-      file.on('finish', () => file.close(resolve));
+      response.on('data', chunk => chunks.push(chunk));
+      response.on('end', () => {
+        const buffer = Buffer.concat(chunks);
+        fs.writeFileSync(dest, buffer);
+        resolve();
+      });
     }).on('error', reject);
   });
 }
