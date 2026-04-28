@@ -1,4 +1,5 @@
 //! URI utilities
+#![allow(dead_code)]
 
 /// Normalize a file URI to a consistent format
 pub fn normalize_uri(uri: &str) -> String {

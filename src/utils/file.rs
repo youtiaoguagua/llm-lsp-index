@@ -1,4 +1,5 @@
 //! File utilities
+#![allow(dead_code)]
 
 use std::fs;
 

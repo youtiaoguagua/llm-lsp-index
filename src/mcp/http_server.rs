@@ -4,10 +4,8 @@
 //! Follows MCP 2024-11-05 protocol specification.
 
 use axum::{
-    body::Body,
     extract::State,
-    http::StatusCode,
-    response::{IntoResponse, Response},
+    response::IntoResponse,
     routing::post,
     Json, Router,
 };
@@ -142,7 +140,7 @@ fn handle_initialized(id: Option<i64>) -> McpHttpResponse {
 }
 
 /// Handle tools/list request
-async fn handle_tools_list(state: &HttpServerState, id: Option<i64>) -> McpHttpResponse {
+async fn handle_tools_list(_state: &HttpServerState, id: Option<i64>) -> McpHttpResponse {
     let tools = McpTool::definitions();
 
     McpHttpResponse {

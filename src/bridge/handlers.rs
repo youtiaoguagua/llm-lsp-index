@@ -1,6 +1,6 @@
 //! Tool call handlers - map MCP tool calls to LSP requests
 
-use crate::mcp::tools::{McpTool, McpToolResponse, McpContent};
+use crate::mcp::tools::{McpToolResponse, McpContent};
 
 /// Handle an MCP tool call
 pub async fn handle_tool_call(

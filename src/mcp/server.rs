@@ -3,7 +3,6 @@
 use std::io::{self, BufRead, Write};
 use std::path::PathBuf;
 use crate::lsp::watcher::{FileWatcher, FileChangeEvent};
-use crate::lsp::java_virtual_uri::JavaVirtualUriHandler;
 use crate::mcp::protocol::{McpRequest, McpResponse, McpError};
 use crate::mcp::tools::McpTool;
 use crate::lsp::{LspClient, LspRegistry};
@@ -94,7 +93,7 @@ impl McpServer {
 
         // Spawn file change handler if watcher is active
         let change_handler = if let Some(mut rx) = self.change_receiver.take() {
-            let client = self.lsp_client.as_mut().map(|c| c as *mut LspClient);
+            let _client = self.lsp_client.as_mut().map(|c| c as *mut LspClient);
             Some(tokio::spawn(async move {
                 while let Some(event) = rx.recv().await {
                     tracing::debug!("File change: {:?} - {:?}", event.path, event.kind);

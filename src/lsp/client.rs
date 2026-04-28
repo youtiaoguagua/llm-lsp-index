@@ -10,6 +10,7 @@ use url::Url;
 
 /// Diagnostics cache entry
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct DiagnosticsEntry {
     pub uri: String,
     pub diagnostics: Vec<serde_json::Value>,
@@ -76,6 +77,7 @@ impl LspClient {
 
         tracing::debug!("Initialize params: root_uri={}", root_uri);
 
+        #[allow(deprecated)]
         let params = InitializeParams {
             process_id: Some(std::process::id()),
             root_uri: Some(root_uri),

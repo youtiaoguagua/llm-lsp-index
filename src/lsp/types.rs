@@ -1,4 +1,5 @@
 //! LSP type utilities - helpers for LSP types handling
+#![allow(dead_code)]
 
 use lsp_types::*;
 
