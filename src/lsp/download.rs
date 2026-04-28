@@ -71,9 +71,42 @@ impl LspDownloader {
             config.primary_url.clone()
         };
 
-        self.download_and_extract(&url, &install_dir, &config.archive_type)
+        // Create temp directory for extraction
+        let temp_extract = std::env::temp_dir()
+            .join(format!("lsp-index-extract-{}-{}", name, std::process::id()));
+        tokio::fs::create_dir_all(&temp_extract).await?;
+
+        self.download_and_extract(&url, &temp_extract, &config.archive_type)
             .await
             .with_context(|| format!("Failed to download LSP: {}", name))?;
+
+        // Find the actual content directory (handle versioned folders like jdt-language-server-1.41.0-*/)
+        let entries: Vec<_> = std::fs::read_dir(&temp_extract)?
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
+            .collect();
+
+        // Move content to install_dir
+        if entries.len() == 1 {
+            // Single directory (e.g., jdt-language-server-1.41.0-202504291445/)
+            let src = entries[0].path();
+            if install_dir.exists() {
+                tokio::fs::remove_dir_all(&install_dir).await?;
+            }
+            tokio::fs::rename(&src, &install_dir).await?;
+        } else {
+            // Multiple items, move all
+            tokio::fs::create_dir_all(&install_dir).await?;
+            for entry in std::fs::read_dir(&temp_extract)? {
+                let entry = entry?;
+                let src = entry.path();
+                let dest = install_dir.join(entry.file_name());
+                tokio::fs::rename(&src, &dest).await?;
+            }
+        }
+
+        // Cleanup temp
+        tokio::fs::remove_dir_all(&temp_extract).await.ok();
 
         // Find executable after extraction
         if let Some(executable) = self.find_executable(&install_dir, config) {
@@ -104,7 +137,7 @@ impl LspDownloader {
         }
     }
 
-    /// Download and extract archive
+    /// Download and extract archive to temp directory
     async fn download_and_extract(
         &self,
         url: &str,
@@ -113,7 +146,7 @@ impl LspDownloader {
     ) -> Result<()> {
         // Create temp file for download
         let temp_file = std::env::temp_dir()
-            .join(format!("lsp-index-download-{}.tmp", std::process::id()));
+            .join(format!("lsp-index-download-{}-{}", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis()));
 
         // Download
         tracing::info!("Downloading from: {}", url);
