@@ -74,19 +74,39 @@ async function ensureBinary() {
 
   const archiveName = getArchiveName();
   const downloadUrl = `https://github.com/youtiaoguagua/llm-lsp-index/releases/download/v${VERSION}/${archiveName}`;
-  const tempPath = path.join(__dirname, archiveName);
+  // Use temp directory for download to avoid file lock issues
+  const tempDir = require('os').tmpdir();
+  const tempPath = path.join(tempDir, `lsp-index-${VERSION}-${Date.now()}.zip`);
 
   try {
     await downloadFile(downloadUrl, tempPath);
     console.log('Download complete, extracting...');
 
     if (process.platform === 'win32') {
-      execSync(`powershell -command "Expand-Archive -Path '${tempPath}' -DestinationPath '${__dirname}' -Force"`);
+      // Use -Force to overwrite and expand to temp first
+      const extractTemp = path.join(tempDir, `lsp-index-extract-${Date.now()}`);
+      fs.mkdirSync(extractTemp, { recursive: true });
+      execSync(`powershell -command "Expand-Archive -Path '${tempPath}' -DestinationPath '${extractTemp}' -Force"`);
+      // Move files from temp to final destination
+      const files = fs.readdirSync(extractTemp);
+      for (const file of files) {
+        const src = path.join(extractTemp, file);
+        const dest = path.join(realDir, file);
+        fs.copyFileSync(src, dest);
+        fs.unlinkSync(src);
+      }
+      fs.rmdirSync(extractTemp);
     } else {
-      execSync(`tar -xzf "${tempPath}" -C "${__dirname}"`);
+      execSync(`tar -xzf "${tempPath}" -C "${realDir}"`);
     }
 
     fs.unlinkSync(tempPath);
+
+    // Verify binary exists after extraction
+    if (!fs.existsSync(binaryPath)) {
+      throw new Error(`Binary not found after extraction: ${binaryPath}`);
+    }
+
     console.log('Binary installed successfully!');
   } catch (error) {
     throw new Error(`Failed to download binary: ${error.message}`);
