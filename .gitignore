@@ -4,11 +4,6 @@
 Cargo.lock
 *.pdb
 
-# Tauri
-/src-tauri/target/
-/src-tauri/dist/
-/src-tauri/node_modules/
-
 # IDE
 .idea/
 .vscode/
@@ -16,6 +11,9 @@ Cargo.lock
 *.swo
 *~
 .DS_Store
+
+# Claude
+.claude/
 
 # Logs
 *.log
