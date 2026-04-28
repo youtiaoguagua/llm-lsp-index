@@ -5,6 +5,7 @@ use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader, BufWrit
 use tokio::process::{Child, ChildStdin, ChildStdout, Command};
 
 use crate::lsp::registry::LspConfig;
+use crate::lsp::download::{LspDownloader, get_lsp_download_config, find_jdt_launcher};
 
 /// LSP process wrapper with stdin/stdout communication
 pub struct LspProcess {
@@ -21,10 +22,12 @@ pub struct LspProcess {
 }
 
 impl LspProcess {
-    /// Spawn a new LSP process
+    /// Spawn a new LSP process with automatic download
     pub async fn spawn(config: &LspConfig) -> Result<Self, Box<dyn std::error::Error>> {
-        let binary_name = config.binary_name.clone();
-        let spawn_args = config.get_spawn_command();
+        // Try to ensure LSP is downloaded (for supported languages)
+        let spawn_args = Self::resolve_spawn_command(config).await?;
+
+        let binary_name = spawn_args[0].clone();
 
         tracing::info!("Starting LSP process: {}", spawn_args.join(" "));
 
@@ -57,6 +60,64 @@ impl LspProcess {
             binary_name,
             request_id: 0,
         })
+    }
+
+    /// Resolve spawn command with auto-download support
+    async fn resolve_spawn_command(config: &LspConfig) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+        match config.language.as_str() {
+            "java" => {
+                // Try to get JDT LS path with auto-download
+                let jar_path = Self::ensure_jdt_ls().await?;
+                Ok(vec![
+                    "java".to_string(),
+                    "-jar".to_string(),
+                    jar_path,
+                ])
+            }
+            "rust" => Ok(vec![
+                "rustup".to_string(),
+                "run".to_string(),
+                "stable".to_string(),
+                "rust-analyzer".to_string()
+            ]),
+            _ => Ok(vec![config.binary_name.clone()]),
+        }
+    }
+
+    /// Ensure JDT LS is available, downloading if necessary
+    async fn ensure_jdt_ls() -> Result<String, Box<dyn std::error::Error>> {
+        // First check environment variable
+        if let Ok(path) = std::env::var("JDT_LS_PATH") {
+            if std::path::Path::new(&path).exists() {
+                return Ok(path);
+            }
+        }
+
+        // Check common system paths
+        let system_paths = [
+            "/usr/share/java/jdtls/plugins/org.eclipse.equinox.launcher_*.jar",
+            "/opt/jdtls/plugins/org.eclipse.equinox.launcher_*.jar",
+        ];
+        for pattern in &system_paths {
+            if let Ok(entries) = glob::glob(pattern) {
+                for entry in entries.flatten() {
+                    return Ok(entry.to_string_lossy().to_string());
+                }
+            }
+        }
+
+        // Try to download from cache
+        let downloader = LspDownloader::new()?;
+        if let Some(dl_config) = get_lsp_download_config("java") {
+            let plugins_dir = downloader.ensure_lsp("jdtls", &dl_config).await?;
+
+            // Find the launcher jar in plugins directory
+            if let Some(launcher) = find_jdt_launcher(&plugins_dir) {
+                return Ok(launcher.to_string_lossy().to_string());
+            }
+        }
+
+        Err("JDT Language Server not found. Please install it or set JDT_LS_PATH".into())
     }
 
     /// Send a JSON-RPC request to LSP

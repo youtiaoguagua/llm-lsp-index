@@ -58,6 +58,20 @@ grep = "0.3"
 # File path globbing
 glob = "0.3"
 
+# HTTP client for downloading LSP servers
+reqwest = { version = "0.12", features = ["stream"] }
+
+# Archive extraction
+tar = "0.4"
+flate2 = "1"
+zip = "2"
+
+# Cache directory handling
+dirs = "5"
+
+# Async traits
+async-trait = "0.1"
+
 [dev-dependencies]
 # Testing
 tokio-test = "0.4"

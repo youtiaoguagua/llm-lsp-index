@@ -48,32 +48,8 @@ impl LspConfig {
                 "rust-analyzer".to_string()
             ],
             "java" => {
-                // JDT LS requires special spawn command
-                // Try environment variable first, then common locations
-                let jdt_ls_path = std::env::var("JDT_LS_PATH")
-                    .or_else(|_| {
-                        // Common installation paths
-                        let paths = [
-                            "/usr/share/java/jdtls/plugins/org.eclipse.equinox.launcher_*.jar",
-                            "/opt/jdtls/plugins/org.eclipse.equinox.launcher_*.jar",
-                            "~/jdtls/plugins/org.eclipse.equinox.launcher_*.jar",
-                        ];
-                        for pattern in &paths {
-                            if let Ok(entries) = glob::glob(pattern) {
-                                for entry in entries.flatten() {
-                                    return Ok(entry.to_string_lossy().to_string());
-                                }
-                            }
-                        }
-                        Err("JDT LS not found")
-                    })
-                    .unwrap_or_else(|_| "jdt-language-server".to_string());
-
-                vec![
-                    "java".to_string(),
-                    "-jar".to_string(),
-                    jdt_ls_path,
-                ]
+                // JDT LS path is resolved in LspProcess with auto-download
+                vec!["java".to_string(), "-jar".to_string(), "jdt-language-server".to_string()]
             }
             _ => vec![self.binary_name.clone()],
         }
