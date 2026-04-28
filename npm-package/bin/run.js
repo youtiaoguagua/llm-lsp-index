@@ -12,7 +12,18 @@ const { spawn, execSync } = require('child_process');
 
 const platform = process.platform;
 const binaryName = platform === 'win32' ? 'lsp-index.exe' : 'lsp-index';
-const binaryPath = path.join(__dirname, binaryName);
+
+// Resolve __dirname to real path (handle pnpm symlinks)
+const realDir = fs.realpathSync(__dirname);
+const binaryPath = path.join(realDir, binaryName);
+
+// Debug: log paths if LSP_INDEX_DEBUG is set
+if (process.env.LSP_INDEX_DEBUG) {
+  console.error('__dirname:', __dirname);
+  console.error('realDir:', realDir);
+  console.error('binaryPath:', binaryPath);
+  console.error('binary exists:', fs.existsSync(binaryPath));
+}
 
 const VERSION = require('../package.json').version;
 
