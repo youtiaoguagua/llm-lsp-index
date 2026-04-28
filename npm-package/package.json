@@ -1,6 +1,6 @@
 {
   "name": "lsp-index-mcp",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "LSP-to-MCP Bridge - Headless LSP Client exposing IDE capabilities to AI via MCP",
   "main": "index.js",
   "bin": {
